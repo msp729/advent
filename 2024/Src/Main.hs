@@ -1,8 +1,8 @@
 module Src.Main (main) where
 
 import Control.Spoon (spoon)
-import qualified Src.F5 as F5
 import qualified Src.F10 as F10
+import qualified Src.F5 as F5
 import System.Environment (getArgs)
 
 main :: IO ()
@@ -18,6 +18,7 @@ main = do
 runDay :: Int -> IO ()
 runDay n
     | 1 <= n && n <= 5 = F5.calcDay n =<< readDay n
+    | 6 <= n && n <= 10 = F10.calcDay n =<< readDay n
 
 readDay :: Int -> IO [String]
 readDay n = lines <$> readFile ("./inputs/" ++ show n ++ ".txt")

@@ -4,6 +4,7 @@
 
 module Src.F5 (calcDay) where
 
+import Control.Applicative
 import Data.Bifunctor (bimap, first)
 import Data.Char (isDigit)
 import Data.List (elemIndex, isPrefixOf, nub, partition, permutations, sort, transpose)
@@ -203,7 +204,7 @@ day5 text = do
         makeGood l =
             if all (follows l) relevant
                 then l
-                else makeGood $ foldr (.) id (map enforce relevant) $ l
+                else makeGood $ foldr ((.) . enforce) id relevant l
           where
             relevant = filter (\(a, b) -> elem a l && elem b l) rules
 
