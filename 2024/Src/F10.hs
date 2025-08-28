@@ -1,13 +1,18 @@
-{-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE Strict #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Src.F10 (calcDay) where
 
 import Control.Applicative (liftA3)
+import Data.Bifunctor (Bifunctor (bimap))
+import Data.Containers.ListUtils (nubOrd)
+import Data.Functor ((<&>))
 import Data.IntSet (IntSet)
 import qualified Data.IntSet as IS
-import Data.List (elemIndex, findIndex, nub)
-import Data.Maybe (catMaybes)
+import Data.List (elemIndex, findIndex, nub, sort)
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as M
+import Data.Maybe (catMaybes, fromMaybe)
 import Data.Set (Set)
 import qualified Data.Set as S
 
@@ -17,6 +22,11 @@ calcDay 7 = day7
 calcDay 8 = day8
 calcDay 9 = day9
 calcDay 10 = day10
+
+(&) :: (a -> b) -> (b -> c) -> a -> c
+f & g = g . f
+
+infixr 9 &
 
 day6, day7, day8, day9, day10 :: [String] -> IO ()
 
@@ -28,7 +38,7 @@ day6 grid = do
     print $ length loopObstacles
   where
     h = length grid
-    w = length $ head grid
+    w = length $ grid !! 0
     get (y, x) = grid !! y !! x
     locations = [(y, x) | y <- [0 .. h - 1], x <- [0 .. w - 1]]
     obstacles = filter ((== '#') . get) locations
@@ -115,8 +125,81 @@ day7 txt = do
     part1 = sum $ catMaybes $ attemptline <$> parsed
     part2 = sum $ catMaybes $ attempt' <$> parsed
 
+type Pos = (Int, Int)
+
 -- | day 8
-day8 = undefined
+day8 txt = do
+    print $ length totalNodes1
+    print $ length totalNodes2
+  where
+    h, w :: Int
+    h = length txt
+    w = length $ txt !! 0
+
+    enumerate :: [a] -> [(Int, a)]
+    enumerate = zip [0 ..]
+
+    locify :: [[a]] -> [[(Pos, a)]]
+    locify = enumerate & (map $ uncurry $ \x -> enumerate & map (uncurry $ \y -> ((y, x),)))
+
+    cells :: [(Pos, Char)]
+    cells = concat $ locify txt
+
+    channels :: String
+    channels = filter (/= '.') $ nubOrd $ concat txt
+
+    transmitters' :: [(Char, Pos)]
+    transmitters' = sort $ map (uncurry (flip (,))) $ filter ((`elem` channels) . snd) cells
+
+    transmitters :: [(Char, [Pos])]
+    transmitters = helper transmitters' []
+      where
+        helper :: (Eq a) => [(a, b)] -> [(a, [b])] -> [(a, [b])]
+        helper [] x = x
+        helper ((k, v) : kvs) [] = helper kvs [(k, [v])]
+        helper ((k, v) : kvs) ((k', l) : kls)
+            | k == k' = helper kvs ((k', v : l) : kls)
+            | otherwise = helper kvs ((k, [v]) : (k', l) : kls)
+
+    (+:), (-:) :: Pos -> Pos -> Pos
+    (a, b) +: (c, d) = (a + c, b + d)
+    (a, b) -: (c, d) = (a - c, b - d)
+
+    potnodes1, potnodes2 :: Pos -> Pos -> Set Pos
+    potnodes1 a b = S.fromList $ b +: d : a -: d : fromMaybe [] ints
+      where
+        qr3 :: Int -> (Int, Int)
+        qr3 = flip quotRem 3
+        d3 :: Pos -> (Pos, Pos)
+        d3 (qr3 -> (a, a'), qr3 -> (b, b')) = ((a, b), (a', b'))
+
+        d = b -: a
+        interior = case d3 d of
+            (third, (0, 0)) -> Just third
+            _ -> Nothing
+        ints = interior <&> \d' -> [a +: d', b -: d']
+
+    potnodes2 a b = S.fromList $ minuses <> pluses
+      where
+        d' = b -: a
+        dq = liftA2 gcd fst snd d'
+        d = bimap (`quot` dq) (`quot` dq) d'
+        minuses, pluses :: [Pos]
+        minuses = takeWhile inGrid $ iterate (-: d) a
+        pluses = takeWhile inGrid $ iterate (+: d) a
+
+    inGrid :: Pos -> Bool
+    inGrid = \(x, y) -> x >= 0 && y >= 0 && x < w && y < h
+
+    nodes1, nodes2 :: [Pos] -> Set Pos
+    nodes1 [] = mempty
+    nodes1 (x : xs) = nodes1 xs <> S.filter inGrid (foldMap (potnodes1 x) xs)
+    nodes2 [] = mempty
+    nodes2 (x : xs) = nodes2 xs <> foldMap (potnodes2 x) xs
+
+    totalNodes1, totalNodes2 :: Set Pos
+    totalNodes1 = foldMap (nodes1 . snd) transmitters
+    totalNodes2 = foldMap (nodes2 . snd) transmitters
 
 -- | day 9
 day9 = undefined
