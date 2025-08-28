@@ -5,6 +5,7 @@ module Src.F10 (calcDay) where
 
 import Control.Applicative (liftA3)
 import Data.Bifunctor (Bifunctor (bimap))
+import Data.Char (digitToInt, isDigit)
 import Data.Containers.ListUtils (nubOrd)
 import Data.Functor ((<&>))
 import Data.IntSet (IntSet)
@@ -201,8 +202,58 @@ day8 txt = do
     totalNodes1 = foldMap (nodes1 . snd) transmitters
     totalNodes2 = foldMap (nodes2 . snd) transmitters
 
+newtype ID = ID Int deriving (Num, Enum, Eq, Ord, Show)
+newtype Size = Size Int deriving (Num, Enum, Eq, Ord, Read, Show)
+type FS = [(ID, Size)]
+
 -- | day 9
-day9 = undefined
+day9 txt = do
+    print $ cksum fs
+    putStrLn "part 2 in rust because it seemed easier"
+  where
+    sizes :: [Size]
+    sizes = map (Size . digitToInt) $ filter isDigit $ concat txt
+
+    ids :: FS
+    ids = helper 0 sizes
+      where
+        helper n [] = []
+        helper n (x : []) = [(n, x)]
+        helper n (x : y : z) = (n, x) : (-1, y) : helper (n + 1) z
+
+    needed :: Size
+    needed = sum $ map snd $ filter ((/= -1) . fst) ids
+
+    use, move :: FS
+    (use, reverse . filter ((/= -1) . fst) -> move) = helper needed ids
+      where
+        helper :: Size -> FS -> (FS, FS)
+        helper limit [] = ([], [])
+        helper limit ((fn, fs) : rest)
+            | limit == fs = ([(fn, fs)], rest)
+            | limit > fs = bimap ((fn, fs) :) id $ helper (limit - fs) rest
+            | limit < fs = ([(fn, limit)], (fn, fs - limit) : rest)
+
+    fill :: FS -> FS -> FS
+    fill [] x = x
+    fill x [] = x
+    fill ((-1, free) : blk) ((fn, fs) : move) =
+        case compare free fs of
+            GT -> (fn, fs) : fill ((-1, free - fs) : blk) move
+            EQ -> (fn, fs) : fill blk move
+            LT -> (fn, free) : fill blk ((fn, fs - free) : move)
+    fill (file : blk) move = file : fill blk move
+
+    fs :: FS
+    fs = fill use move
+
+    cksum :: FS -> Int
+    cksum = helper 0
+      where
+        helper :: Int -> FS -> Int
+        helper pos [] = 0
+        helper pos ((-1, Size s) : blk) = helper (pos + s) blk
+        helper pos ((ID fn, Size s) : blk) = fn * (s * pos + quot (s * (s - 1)) 2) + helper (pos + s) blk
 
 -- | day 10
 day10 = undefined
