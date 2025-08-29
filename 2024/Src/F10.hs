@@ -256,4 +256,65 @@ day9 txt = do
         helper pos ((ID fn, Size s) : blk) = fn * (s * pos + quot (s * (s - 1)) 2) + helper (pos + s) blk
 
 -- | day 10
-day10 = undefined
+day10 txt = do
+    print $ sum $ map score starts
+    print $ sum $ map rate starts
+  where
+    lvls = map (map digitToInt) txt
+
+    inGrid :: Pos -> Bool
+    inGrid (x, y) = 0 <= y && y < length lvls && 0 <= x && x < length (lvls !! y)
+
+    (!@) :: [[a]] -> (Int, Int) -> a
+    l !@ (x, y) = l !! y !! x
+
+    starts :: [Pos]
+    starts =
+        [ (x, y)
+        | y <- [0 .. length lvls - 1]
+        , x <- [0 .. length (lvls !! y) - 1]
+        , lvls !! y !! x == 0
+        ]
+
+    app3 :: (Ord a) => (a -> Set a) -> a -> Set a
+    app3 f = S.unions . S.elems . S.map f . S.unions . S.elems . S.map f . f
+    acc3, acc9 :: Pos -> Set Pos
+    acc3 = app3 accessible
+    acc9 = app3 acc3
+
+    score :: Pos -> Int
+    score = length . acc9
+
+    accessible :: Pos -> Set Pos
+    accessible p =
+        S.fromList
+            [ p'
+            | step <- [bimap succ id, bimap id succ, bimap pred id, bimap id pred]
+            , let p' = step p
+            , inGrid p'
+            , lvls !@ p' - lvls !@ p == 1
+            ]
+
+    ratings :: [[Int]]
+    ratings =
+        [ [ rate (x, y)
+          | x <- [0 .. length (lvls !! y)]
+          ]
+        | y <- [0 .. length lvls]
+        ]
+
+    rate :: (Int, Int) -> Int
+    rate (x, y) = case lvls !! y !! x of
+        9 -> 1
+        k ->
+            sum $
+                map (ratings !@) $
+                    filter (liftA2 (&&) inGrid (fmap ((==) (succ k)) (lvls !@))) $
+                        [ step (x, y)
+                        | step <-
+                            [ bimap succ id
+                            , bimap pred id
+                            , bimap id pred
+                            , bimap id succ
+                            ]
+                        ]
